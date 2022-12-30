@@ -30,6 +30,14 @@
 #include <linux/udp.h>
 #include <stddef.h>
 
+#ifndef memcpy
+#define memcpy(dest, src, n) __builtin_memcpy((dest), (src), (n))
+#endif
+
+#ifndef memset
+#define memset(buf, ch, n) __builtin_memset((buf), (ch), (n))
+#endif
+
 /* Header cursor to keep track of current parsing position */
 struct hdr_cursor {
   void *pos;
