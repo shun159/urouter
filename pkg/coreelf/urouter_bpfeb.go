@@ -23,6 +23,11 @@ type urouterDatarec struct {
 	RxBytes   uint64
 }
 
+type urouterMacEntry struct {
+	Address [6]uint8
+	VlanId  uint16
+}
+
 // loadUrouter returns the embedded CollectionSpec for urouter.
 func loadUrouter() (*ebpf.CollectionSpec, error) {
 	reader := bytes.NewReader(_UrouterBytes)
