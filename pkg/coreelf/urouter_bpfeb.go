@@ -73,8 +73,9 @@ type urouterProgramSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type urouterMapSpecs struct {
-	Stats   *ebpf.MapSpec `ebpf:"stats"`
-	TxPorts *ebpf.MapSpec `ebpf:"tx_ports"`
+	BridgeTable *ebpf.MapSpec `ebpf:"bridge_table"`
+	Stats       *ebpf.MapSpec `ebpf:"stats"`
+	TxPorts     *ebpf.MapSpec `ebpf:"tx_ports"`
 }
 
 // urouterObjects contains all objects after they have been loaded into the kernel.
@@ -96,12 +97,14 @@ func (o *urouterObjects) Close() error {
 //
 // It can be passed to loadUrouterObjects or ebpf.CollectionSpec.LoadAndAssign.
 type urouterMaps struct {
-	Stats   *ebpf.Map `ebpf:"stats"`
-	TxPorts *ebpf.Map `ebpf:"tx_ports"`
+	BridgeTable *ebpf.Map `ebpf:"bridge_table"`
+	Stats       *ebpf.Map `ebpf:"stats"`
+	TxPorts     *ebpf.Map `ebpf:"tx_ports"`
 }
 
 func (m *urouterMaps) Close() error {
 	return _UrouterClose(
+		m.BridgeTable,
 		m.Stats,
 		m.TxPorts,
 	)

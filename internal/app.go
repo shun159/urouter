@@ -1,10 +1,8 @@
 package internal
 
 import (
-	"net"
 	"time"
 
-	"github.com/cilium/ebpf/link"
 	"github.com/pkg/errors"
 	"github.com/shun159/urouter/pkg/coreelf"
 )
@@ -16,16 +14,7 @@ func App() error {
 	}
 	defer objs.Close()
 
-	iface, err := net.InterfaceByName("wlan0")
-	if err != nil {
-		return errors.WithStack(err)
-	}
-
-	l, err := link.AttachXDP(link.XDPOptions{
-		Program:   objs.XdpRouterFn,
-		Interface: iface.Index,
-	})
-
+	l, err := objs.AttachDev("wlan0")
 	if err != nil {
 		return errors.WithStack(err)
 	}

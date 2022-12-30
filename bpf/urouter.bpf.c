@@ -26,6 +26,7 @@
 #include <stddef.h>
 
 #include <bpf/bpf_helpers.h>
+#include "urouter_helpers.bpf.h"
 
 #ifndef memcpy
 #define memcpy(dest, src, n) __builtin_memcpy((dest), (src), (n))
@@ -57,6 +58,10 @@ struct {
     __uint(max_entries, XDP_ACTION_MAX);
 } stats SEC(".maps");
 
+struct {
+    __uint(type, BPF_MAP_TYPE_LRU_HASH);
+    __uint(key_size, ETH_ALEN);
+} bridge_table SEC(".maps");
 
 // helper functions
 
@@ -78,14 +83,6 @@ uint32_t update_stats(struct xdp_md *ctx, __u32 action) {
 	rec->rx_bytes += (ctx->data_end - ctx->data);
 
 	return action;
-}
-
-static __always_inline 
-uint16_t csum_fold_helper(uint32_t csum) {
-	__u32 sum;
-	sum = (csum >> 16) + (csum & 0xffff);
-	sum += (sum >> 16);
-	return ~sum;
 }
 
 //
