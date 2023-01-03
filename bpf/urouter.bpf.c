@@ -31,79 +31,126 @@
 
 /* This is the data record stored in the map */
 struct datarec {
-  uint64_t rx_packets;
-  uint64_t rx_bytes;
+	uint64_t rx_packets;
+	uint64_t rx_bytes;
 };
 
 /* This is the Bridge entry stored in the map*/
 struct mac_entry {
-  unsigned char address[ETH_ALEN]; /* destination eth addr */
-  unsigned short vlan_id;
+	unsigned char address[ETH_ALEN]; /* destination eth addr */
+	unsigned short vlan_id;
+    uint32_t domain_id;
+} __attribute__((packed));
+
+/* config entry per interface */
+struct vif_entry {
+    uint32_t ifindex;
+    uint32_t domain_id;
 } __attribute__((packed));
 
 #ifndef XDP_ACTION_MAX
 #define XDP_ACTION_MAX (XDP_REDIRECT + 1)
 #endif
 
-struct {
-  __uint(type, BPF_MAP_TYPE_DEVMAP_HASH);
-  __type(key, uint32_t);
-  __type(value, struct bpf_devmap_val);
-  __uint(max_entries, 256);
+/*
+ * Map definitions
+ *  - tx_ports: used for redirect packet
+ *  - domain: used for define broadcast domain.
+ *  - virtual_interfaces(vif): interface configuration
+ *  - bridge_table: shared FIB table backed by LRU hash table.
+ *
+ *        +----------------------------------------+
+ *        |                                        |
+ *        | +-----------+                          |
+ * vif1 <-----          |  logical L2 switch       | 
+ *        | |  domain1  |                          |
+ * vif2 <-----          | <--+       +-----------+ |
+ *        | +-----------+    | r/w   | Shared    | |
+ *        |                  +-----> | FIB table | |
+ *        | +-----------+    |       |           | |
+ * vif3 <-----          | <--+       +-----------+ |
+ *        | |  domain2  |                          |
+ * vif4 <-----          |                          |
+ *        | +-----------+                          |
+ *        |                                        |
+ *        +----------------------------------------+
+ */
+
+struct domain_devmap {
+	__uint(type, BPF_MAP_TYPE_DEVMAP);
+	__type(key, uint32_t);
+	__type(value, uint32_t);
+	__uint(max_entries, 256);
 } tx_ports SEC(".maps");
 
 struct {
-  __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
-  __type(key, uint32_t);
-  __type(value, struct datarec);
-  __uint(max_entries, XDP_ACTION_MAX);
-} stats SEC(".maps");
+    __uint(type, BPF_MAP_TYPE_HASH_OF_MAPS);
+    __uint(max_entries, 10);
+    __type(key, uint32_t);
+    __type(value, uint32_t);
+    __array(values, struct domain_devmap);
+} domain SEC(".maps");
 
 struct {
-  __uint(type, BPF_MAP_TYPE_LRU_HASH);
-  __type(key, struct mac_entry);
-  __type(value, uint32_t);
-  __uint(max_entries, 1000);
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __type(key, uint32_t);
+    __type(value, struct vif_entry);
+    __uint(max_entries, 256);
+} virtual_interfaces SEC(".maps");
+
+struct {
+	__uint(type, BPF_MAP_TYPE_LRU_HASH);
+	__type(key, struct mac_entry);
+	__type(value, uint32_t);
+	__uint(max_entries, 1000);
 } bridge_table SEC(".maps");
 
 //
 // eBPF functions
 //
-static __always_inline int bridge_input(struct xdp_md *ctx) {
-  void *data_end = (void *)(long)ctx->data_end;
-  void *data = (void *)(long)ctx->data;
+static __always_inline int bridge_input(struct xdp_md *ctx)
+{
+	void *data_end = (void *)(long)ctx->data_end;
+	void *data = (void *)(long)ctx->data;
 
-  struct hdr_cursor nh;
-  struct ethhdr *eth;
-  struct collect_vlans vlans;
-  struct mac_entry entry = {};
+	struct hdr_cursor nh;
+	struct ethhdr *eth;
+	struct collect_vlans vlans;
+	struct mac_entry entry = {};
+	uint32_t ingress_ifindex;
 
-  int eth_type;
-  uint32_t ingress_ifindex;
+	nh.pos = data;
+	int eth_type = parse_ethhdr_vlan(&nh, data_end, &eth, &vlans);
 
-  nh.pos = data;
-  eth_type = parse_ethhdr_vlan(&nh, data_end, &eth, &vlans);
+	if (eth_type < 0)
+		return XDP_ABORTED;
 
-  if (eth_type < 0) return XDP_ABORTED;
-  memcpy(&entry.address, eth->h_source, ETH_ALEN);
-  memcpy(&ingress_ifindex, &ctx->ingress_ifindex, sizeof(uint32_t));
+	memcpy(&entry.address, eth->h_source, ETH_ALEN);
+	memcpy(&ingress_ifindex, &ctx->ingress_ifindex, sizeof(uint32_t));
 
-  // MAC learning
-  bpf_map_update_elem(&bridge_table, &entry, &ingress_ifindex, 0);
+	// MAC learning
+	bpf_map_update_elem(&bridge_table, &entry, &ingress_ifindex, 0);
 
-  return 0;
+	return 0;
 }
 
 SEC("xdp_redirect")
-int xdp_redirect_fn(struct xdp_md *ctx) { return XDP_REDIRECT; }
+int xdp_redirect_fn(struct xdp_md *ctx)
+{
+	return XDP_REDIRECT;
+}
 
 SEC("xdp_router")
-int xdp_router_fn(struct xdp_md *ctx) {
-  bridge_input(ctx);
-  return XDP_PASS;
+int xdp_router_fn(struct xdp_md *ctx)
+{
+	bridge_input(ctx);
+	return XDP_PASS;
 }
 
 SEC("xdp_pass")
-int xdp_pass_fn(struct xdp_md *ctx) { return XDP_PASS; }
+int xdp_pass_fn(struct xdp_md *ctx)
+{
+	return XDP_PASS;
+}
 
 char _license[] SEC("license") = "GPL";

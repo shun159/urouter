@@ -18,14 +18,15 @@ type urouterBpfDevmapVal struct {
 	BpfProg struct{ Fd int32 }
 }
 
-type urouterDatarec struct {
-	RxPackets uint64
-	RxBytes   uint64
+type urouterMacEntry struct {
+	Address  [6]uint8
+	VlanId   uint16
+	DomainId uint32
 }
 
-type urouterMacEntry struct {
-	Address [6]uint8
-	VlanId  uint16
+type urouterVifEntry struct {
+	Ifindex  uint32
+	DomainId uint32
 }
 
 // loadUrouter returns the embedded CollectionSpec for urouter.
@@ -78,9 +79,10 @@ type urouterProgramSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type urouterMapSpecs struct {
-	BridgeTable *ebpf.MapSpec `ebpf:"bridge_table"`
-	Stats       *ebpf.MapSpec `ebpf:"stats"`
-	TxPorts     *ebpf.MapSpec `ebpf:"tx_ports"`
+	BridgeTable       *ebpf.MapSpec `ebpf:"bridge_table"`
+	Domain            *ebpf.MapSpec `ebpf:"domain"`
+	TxPorts           *ebpf.MapSpec `ebpf:"tx_ports"`
+	VirtualInterfaces *ebpf.MapSpec `ebpf:"virtual_interfaces"`
 }
 
 // urouterObjects contains all objects after they have been loaded into the kernel.
@@ -102,16 +104,18 @@ func (o *urouterObjects) Close() error {
 //
 // It can be passed to loadUrouterObjects or ebpf.CollectionSpec.LoadAndAssign.
 type urouterMaps struct {
-	BridgeTable *ebpf.Map `ebpf:"bridge_table"`
-	Stats       *ebpf.Map `ebpf:"stats"`
-	TxPorts     *ebpf.Map `ebpf:"tx_ports"`
+	BridgeTable       *ebpf.Map `ebpf:"bridge_table"`
+	Domain            *ebpf.Map `ebpf:"domain"`
+	TxPorts           *ebpf.Map `ebpf:"tx_ports"`
+	VirtualInterfaces *ebpf.Map `ebpf:"virtual_interfaces"`
 }
 
 func (m *urouterMaps) Close() error {
 	return _UrouterClose(
 		m.BridgeTable,
-		m.Stats,
+		m.Domain,
 		m.TxPorts,
+		m.VirtualInterfaces,
 	)
 }
 
