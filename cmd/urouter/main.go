@@ -6,6 +6,7 @@ import (
 
 	"github.com/shun159/urouter/internal"
 	"github.com/shun159/urouter/pkg/maps/domainmap"
+	"github.com/shun159/urouter/pkg/maps/vifmap"
 )
 
 func main() {
@@ -31,6 +32,22 @@ func main() {
 
 	for devmap_iter.Next(&k, &v) {
 		fmt.Printf("k: %+v  v: %+v\n", k, v)
+	}
+
+	vif, err := vifmap.InitVifMap(100)
+	if err != nil {
+		log.Fatalf("%+v", err)
+	}
+
+	vif.AddVif(3, &vifmap.VifVal{DomainId: 0x11})
+	vif.AddVif(5, &vifmap.VifVal{DomainId: 0x11})
+
+	var vk vifmap.VifKey
+	var vv vifmap.VifVal
+
+	vif_iter := vif.IterVif()
+	for vif_iter.Next(&vk, &vv) {
+		fmt.Printf("k: %+v  v: %+v\n", vk, vv)
 	}
 
 	if err := internal.App(); err != nil {
