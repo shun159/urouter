@@ -14,7 +14,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-package domain
+package domainmap
 
 import (
 	"errors"
@@ -52,7 +52,7 @@ type DomainOuterVal struct {
 // devmap with the given Id.
 func (m *DomainOuterMap) UpdateDomain(id uint32, inner *DomainInnerMap) error {
 	key := DomainOuterKey{DomainId: id}.toNetwork()
-	val := DomainOuterVal{FD: uint32(inner.FD())}
+	val := DomainOuterVal{FD: uint32(inner.getFD())}
 	return m.Map.Update(key, val, 0)
 }
 

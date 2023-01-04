@@ -13,11 +13,6 @@ import (
 	"github.com/cilium/ebpf"
 )
 
-type urouterBpfDevmapVal struct {
-	Ifindex uint32
-	BpfProg struct{ Fd int32 }
-}
-
 type urouterMacEntry struct {
 	Address  [6]uint8
 	VlanId   uint16

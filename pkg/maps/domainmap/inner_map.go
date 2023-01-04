@@ -14,7 +14,7 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-package domain
+package domainmap
 
 import (
 	"unsafe"
@@ -27,12 +27,23 @@ type DomainInnerMap ebpf.Map
 
 // DomainInnerKey is the key of a maglev inner map.
 type DomainInnerKey struct {
-	Index uint32
+	Ifindex uint32
 }
 
 // DomainInnerVal is the value of a maglev inner map.
 type DomainInnerVal struct {
 	Ifindex uint32
+}
+
+func (m *DomainInnerMap) getFD() int {
+	return m.FD()
+}
+
+// AddDomainDev updates the domain inner map's list of domain.
+func (m *DomainInnerMap) AddDomainDev(ifindex uint32) error {
+	key := DomainInnerKey{Ifindex: ifindex}
+	val := DomainInnerVal{Ifindex: ifindex}
+	return m.Map.Put(key, val, 0)
 }
 
 // DomainInnerMapFromID returns a new object representing the domain inner map
@@ -50,7 +61,7 @@ func DomainInnerMapFromID(id uint32) (*DomainInnerMap, error) {
 func newDomainInnerMapSpec(maxEntries uint32) *ebpf.MapSpec {
 	return &ebpf.MapSpec{
 		Name:       "urouter_domain_inner",
-		Type:       ebpf.DevMapHash,
+		Type:       ebpf.DevMap,
 		KeySize:    uint32(unsafe.Sizeof(DomainInnerKey{})),
 		ValueSize:  uint32(unsafe.Sizeof(DomainInnerVal{})),
 		MaxEntries: maxEntries,
@@ -64,5 +75,4 @@ func createDomainInnerMap(maxEntries uint32) (*DomainInnerMap, error) {
 		return nil, err
 	}
 	return (*DomainInnerMap)(m), nil
-
 }
