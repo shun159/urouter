@@ -17,7 +17,6 @@
 package coreelf
 
 import (
-	"fmt"
 	"net"
 
 	"github.com/cilium/ebpf/link"
@@ -37,21 +36,25 @@ func (obj *urouterObjects) LoadProg() error {
 	return nil
 }
 
-func (obj *urouterObjects) AttachDev(dev string) (link.Link, error) {
-	iface, err := net.InterfaceByName(dev)
-	fmt.Println(iface)
-	if err != nil {
-		return nil, errors.WithStack(err)
+func (obj *urouterObjects) AttachDev(dev_list []string) ([]link.Link, error) {
+	var links []link.Link
+
+	for _, dev := range dev_list {
+		iface, err := net.InterfaceByName(dev)
+		if err != nil {
+			return []link.Link{}, errors.WithStack(err)
+		}
+
+		l, err := link.AttachXDP(link.XDPOptions{
+			Program:   obj.XdpRouterFn,
+			Interface: iface.Index,
+		})
+
+		if err != nil {
+			return []link.Link{}, errors.WithStack(err)
+		}
+
+		links = append(links, l)
 	}
-
-	l, err := link.AttachXDP(link.XDPOptions{
-		Program:   obj.XdpRouterFn,
-		Interface: iface.Index,
-	})
-
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	return l, nil
+	return links, nil
 }

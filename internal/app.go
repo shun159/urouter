@@ -14,11 +14,20 @@ func App() error {
 	}
 	defer objs.Close()
 
-	l, err := objs.AttachDev("wlan0")
+	links, err := objs.AttachDev([]string{
+		"veth1",
+		"veth3",
+		"veth5",
+		"veth7",
+	})
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	defer l.Close()
+	defer func() {
+		for _, l := range links {
+			l.Close()
+		}
+	}()
 
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
