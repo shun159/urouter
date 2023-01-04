@@ -45,14 +45,14 @@ func InitDomainMaps(tableSize uint32) error {
  * updateDomainTable creates a new inner Domain Map containing the given domain_id
  * and sets it as the active lookup table for the given domain_id.
  */
-func updateDomainTable(domain_id uint32, ifindex uint32) error {
+func UpdateDomainTable(domain_id uint32, ifindex uint32) error {
 	outer := domainOuterMap
 	if outer == nil {
 		return errors.New("outer domain map not yet initialized")
 	}
 
 	var inner *DomainInnerMap
-	inner, err := outer.GetDomainPorts(domain_id)
+	inner, err := outer.GetDomainDevmap(domain_id)
 	if errors.Is(err, ebpf.ErrKeyNotExist) {
 		// if the domain_id doesn't exist in the outer map, create a new inner.
 		t_inner, err := createDomainInnerMap(100)
@@ -60,7 +60,7 @@ func updateDomainTable(domain_id uint32, ifindex uint32) error {
 			return err
 		}
 		inner = t_inner
-	} else {
+	} else if err != nil {
 		return err
 	}
 
@@ -73,4 +73,19 @@ func updateDomainTable(domain_id uint32, ifindex uint32) error {
 	}
 
 	return nil
+}
+
+// GetDevmapIterFromDomainId returns iterator object of the devmap containing given domain_id
+func GetDevmapIterFromDomainId(domain_id uint32) (*ebpf.MapIterator, error) {
+	outer := domainOuterMap
+	if outer == nil {
+		return nil, errors.New("outer domain map not yet initialized")
+	}
+
+	inner, err := outer.GetDomainDevmap(domain_id)
+	if err != nil {
+		return nil, err
+	}
+
+	return inner.Iterate(), nil
 }

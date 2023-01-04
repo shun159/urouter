@@ -81,13 +81,15 @@ struct domain_devmap {
 	__type(key, uint32_t);
 	__type(value, uint32_t);
 	__uint(max_entries, 256);
+    __uint(map_flags, BPF_F_NO_PREALLOC);
 } tx_ports SEC(".maps");
 
 struct {
     __uint(type, BPF_MAP_TYPE_HASH_OF_MAPS);
-    __uint(max_entries, 10);
+    __uint(max_entries, 1000);
     __type(key, uint32_t);
     __type(value, uint32_t);
+    __uint(map_flags, BPF_F_NO_PREALLOC);
     __array(values, struct domain_devmap);
 } domain SEC(".maps");
 

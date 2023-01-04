@@ -23,7 +23,9 @@ import (
 )
 
 // DomainInnerMap represents a domain inner map
-type DomainInnerMap ebpf.Map
+type DomainInnerMap struct {
+	*ebpf.Map
+}
 
 // DomainInnerKey is the key of a maglev inner map.
 type DomainInnerKey struct {
@@ -41,20 +43,20 @@ func (m *DomainInnerMap) getFD() int {
 
 // AddDomainDev updates the domain inner map's list of domain.
 func (m *DomainInnerMap) AddDomainDev(ifindex uint32) error {
-	key := DomainInnerKey{Ifindex: ifindex}
+	key := &DomainInnerKey{Ifindex: ifindex}
 	val := DomainInnerVal{Ifindex: ifindex}
-	return m.Map.Put(key, val, 0)
+	return m.Map.Put(key, val)
 }
 
 // DomainInnerMapFromID returns a new object representing the domain inner map
 // identified by an ID
 func DomainInnerMapFromID(id uint32) (*DomainInnerMap, error) {
-	m, err := ebpf.NewMapFromFD(int(id))
+	m, err := ebpf.NewMapFromID(ebpf.MapID(id))
 	if err != nil {
 		return nil, err
 	}
 
-	return (*DomainInnerMap)(m), nil
+	return &DomainInnerMap{m}, nil
 }
 
 // newDomainInnerMapSpec returns the spec for domain inner map.
@@ -74,5 +76,5 @@ func createDomainInnerMap(maxEntries uint32) (*DomainInnerMap, error) {
 	if err != nil {
 		return nil, err
 	}
-	return (*DomainInnerMap)(m), nil
+	return &DomainInnerMap{m}, nil
 }

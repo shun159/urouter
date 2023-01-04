@@ -53,7 +53,7 @@ type DomainOuterVal struct {
 func (m *DomainOuterMap) UpdateDomain(id uint32, inner *DomainInnerMap) error {
 	key := DomainOuterKey{DomainId: id}.toNetwork()
 	val := DomainOuterVal{FD: uint32(inner.getFD())}
-	return m.Map.Update(key, val, 0)
+	return m.Map.Put(&key, val)
 }
 
 // NewDomainOuterMap returns a new object representing a domain outer map.
@@ -70,7 +70,6 @@ func NewDomainOuterMap(
 		ValueSize:  uint32(unsafe.Sizeof(DomainOuterVal{})),
 		MaxEntries: uint32(maxEntries),
 		InnerMap:   innerMap,
-		Pinning:    ebpf.PinByName,
 	})
 
 	if err != nil {
@@ -81,11 +80,11 @@ func NewDomainOuterMap(
 }
 
 // GetDomainPorts gets the domain port list for the given domain_id
-func (m *DomainOuterMap) GetDomainPorts(id uint32) (*DomainInnerMap, error) {
+func (m *DomainOuterMap) GetDomainDevmap(id uint32) (*DomainInnerMap, error) {
 	key := DomainOuterKey{DomainId: id}.toNetwork()
-	val := DomainOuterVal{}
+	var val DomainOuterVal
 
-	err := m.Lookup(key, &val)
+	err := m.Lookup(&key, &val)
 	if errors.Is(err, ebpf.ErrKeyNotExist) {
 		return nil, fmt.Errorf("no domain table entry for domain_id: %v %w", id, err)
 	}
