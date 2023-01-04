@@ -41,6 +41,20 @@ func InitDomainMaps(tableSize uint32) error {
 	return nil
 }
 
+// AddDomainTable adds a domain table with empty map
+func AddDomainTable(domain_id uint32) error {
+	outer := domainOuterMap
+	if outer == nil {
+		return errors.New("outer domain map not yet initialized")
+	}
+
+	inner, err := createDomainInnerMap(100)
+	if err != nil {
+		return err
+	}
+	return outer.UpdateDomain(domain_id, inner)
+}
+
 /*
  * updateDomainTable creates a new inner Domain Map containing the given domain_id
  * and sets it as the active lookup table for the given domain_id.

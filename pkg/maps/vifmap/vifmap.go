@@ -37,20 +37,27 @@ type VifMap struct {
 	*ebpf.Map
 }
 
+var vifMap *VifMap
+
 // InitVifMap inits the vif map.
-func InitVifMap(tableSize uint32) (*VifMap, error) {
-	return createVifMap(tableSize)
+func InitVifMap(tableSize uint32) error {
+	m, err := createVifMap(tableSize)
+	if err != nil {
+		return err
+	}
+	vifMap = m
+	return nil
 }
 
 // AddVif puts VifVal conrrensponding the key onto the hash map
-func (m *VifMap) AddVif(ifindex uint32, vifval *VifVal) error {
+func AddVif(ifindex uint32, vifval *VifVal) error {
 	key := VifKey{ifindex}
-	return m.Map.Put(&key, vifval)
+	return vifMap.Map.Put(&key, vifval)
 }
 
 // IterVif returns an iterator of the hash map.
-func (m *VifMap) IterVif() *ebpf.MapIterator {
-	return m.Iterate()
+func IterVif() *ebpf.MapIterator {
+	return vifMap.Iterate()
 }
 
 // newVifMapSpec retruns the spec for vif map.
