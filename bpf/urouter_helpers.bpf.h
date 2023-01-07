@@ -37,6 +37,21 @@
 #define memset(buf, ch, n) __builtin_memset((buf), (ch), (n))
 #endif
 
+#define VR_MAC_CMP(dst, src)                               \
+	((((uint16_t *)dst)[0] == ((uint16_t *)src)[0]) && \
+	 (((uint16_t *)dst)[1] == ((uint16_t *)src)[1]) && \
+	 (((uint16_t *)dst)[2] == ((uint16_t *)src)[2]))
+
+#define IS_MAC_ZERO(dst)                                               \
+	((((uint16_t *)dst)[0] == 0) && (((uint16_t *)dst)[1] == 0) && \
+	 (((uint16_t *)dst)[2] == 0))
+
+#define IS_MAC_BCAST(dst)                    \
+	((((uint16_t *)dst)[0] == 0xffff) && \
+	 (((uint16_t *)dst)[1] == 0xffff) && (((uint16_t *)dst)[2] == 0xffff))
+
+#define IS_MAC_BMCAST(dst) (((uint8_t *)dst)[0] & 0x1)
+
 /* Header cursor to keep track of current parsing position */
 struct hdr_cursor {
 	void *pos;
@@ -84,9 +99,10 @@ static __always_inline int proto_is_vlan(__u16 h_proto)
  * Ethernet header. Thus, caller can look at eth->h_proto to see if this was a
  * VLAN tagged packet.
  */
-static __always_inline int
-parse_ethhdr_vlan(struct hdr_cursor *nh, void *data_end, struct ethhdr **ethhdr,
-		  struct collect_vlans *vlans)
+static __always_inline int parse_ethhdr_vlan(struct hdr_cursor *nh,
+					     void *data_end,
+					     struct ethhdr **ethhdr,
+					     struct collect_vlans *vlans)
 {
 	struct ethhdr *eth = nh->pos;
 	int hdrsize = sizeof(*eth);
@@ -128,8 +144,8 @@ parse_ethhdr_vlan(struct hdr_cursor *nh, void *data_end, struct ethhdr **ethhdr,
 	return h_proto; /* network-byte-order */
 }
 
-static __always_inline int
-parse_ethhdr(struct hdr_cursor *nh, void *data_end, struct ethhdr **ethhdr)
+static __always_inline int parse_ethhdr(struct hdr_cursor *nh, void *data_end,
+					struct ethhdr **ethhdr)
 {
 	/* Expect compiler removes the code that collects VLAN ids */
 	return parse_ethhdr_vlan(nh, data_end, ethhdr, NULL);

@@ -39,13 +39,12 @@ struct datarec {
 struct mac_entry {
 	unsigned char address[ETH_ALEN]; /* destination eth addr */
 	unsigned short vlan_id;
-    uint32_t domain_id;
+	uint32_t domain_id;
 } __attribute__((packed));
 
 /* config entry per interface */
 struct vif_entry {
-    uint32_t ifindex;
-    uint32_t domain_id;
+	uint32_t domain_id;
 } __attribute__((packed));
 
 #ifndef XDP_ACTION_MAX
@@ -78,27 +77,25 @@ struct vif_entry {
 
 struct domain_devmap {
 	__uint(type, BPF_MAP_TYPE_DEVMAP);
+	__uint(max_entries, 256);
 	__type(key, uint32_t);
 	__type(value, uint32_t);
-	__uint(max_entries, 256);
-    __uint(map_flags, BPF_F_NO_PREALLOC);
 } tx_ports SEC(".maps");
 
 struct {
-    __uint(type, BPF_MAP_TYPE_HASH_OF_MAPS);
-    __uint(max_entries, 1000);
-    __type(key, uint32_t);
-    __type(value, uint32_t);
-    __uint(map_flags, BPF_F_NO_PREALLOC);
-    __array(values, struct domain_devmap);
-} domain SEC(".maps");
+	__uint(type, BPF_MAP_TYPE_HASH_OF_MAPS);
+	__uint(max_entries, 1000);
+	__type(key, uint32_t);
+	__uint(map_flags, BPF_F_NO_PREALLOC);
+	__array(values, struct domain_devmap);
+} domain_map SEC(".maps");
 
 struct {
-    __uint(type, BPF_MAP_TYPE_HASH);
-    __type(key, uint32_t);
-    __type(value, struct vif_entry);
-    __uint(max_entries, 256);
-} virtual_interfaces SEC(".maps");
+	__uint(type, BPF_MAP_TYPE_HASH);
+	__type(key, uint32_t);
+	__type(value, struct vif_entry);
+	__uint(max_entries, 256);
+} urouter_vif SEC(".maps");
 
 struct {
 	__uint(type, BPF_MAP_TYPE_LRU_HASH);
@@ -133,6 +130,15 @@ static __always_inline int bridge_input(struct xdp_md *ctx)
 	// MAC learning
 	bpf_map_update_elem(&bridge_table, &entry, &ingress_ifindex, 0);
 
+	return 0;
+}
+
+static __always_inline int vm_rx(struct xdp_md *ctx)
+{
+	uint32_t in_port = ctx->ingress_ifindex;
+	struct vif_entry *vif = bpf_map_lookup_elem(&urouter_vif, &in_port);
+	if (!vif)
+		return -1;
 	return 0;
 }
 
