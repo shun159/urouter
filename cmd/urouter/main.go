@@ -20,59 +20,43 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/cilium/ebpf/rlimit"
 	"github.com/shun159/urouter/internal"
 	"github.com/shun159/urouter/pkg/config"
-	"github.com/shun159/urouter/pkg/maps/domainmap"
-	"github.com/shun159/urouter/pkg/maps/vifmap"
+	"github.com/shun159/urouter/pkg/coreelf"
+	"github.com/shun159/urouter/pkg/maps/tx_ports"
 )
 
 func main() {
-	if err := domainmap.InitDomainMaps(1000); err != nil {
+	if err := rlimit.RemoveMemlock(); err != nil {
 		log.Fatalf("%+v", err)
 	}
 
-	if err := vifmap.InitVifMap(100); err != nil {
+	if err := coreelf.Init(); err != nil {
 		log.Fatalf("%+v", err)
 	}
 
-	domains := []config.DomainConfig{
-		{DomainId: 1},
-		{DomainId: 2},
-	}
-
-	vifs := []config.VifConfig{
-		{IfName: "veth1", DomainId: 1},
-		{IfName: "veth3", DomainId: 1},
-		{IfName: "veth5", DomainId: 2},
-		{IfName: "veth7", DomainId: 2},
-	}
-
-	if err := config.SetDomains(domains); err != nil {
+	if err := tx_ports.InitTxPorts(); err != nil {
 		log.Fatalf("%+v", err)
 	}
 
-	if err := config.SetVifs(vifs); err != nil {
+	ports := []config.TxPorts{
+		{IfName: "veth1"},
+		{IfName: "veth3"},
+		{IfName: "veth5"},
+		{IfName: "veth7"},
+	}
+
+	if err := config.SetTxPorts(ports); err != nil {
 		log.Fatalf("%+v", err)
 	}
 
-	devmap_iter, err := domainmap.GetDevmapIterFromDomainId(1)
-	if err != nil {
-		log.Fatalf("%+v", err)
-	}
+	var vk uint32
+	var vv uint32
 
-	var k domainmap.DomainInnerKey
-	var v domainmap.DomainInnerVal
-
-	for devmap_iter.Next(&k, &v) {
-		fmt.Printf("k: %+v  v: %+v\n", k, v)
-	}
-
-	var vk vifmap.VifKey
-	var vv vifmap.VifVal
-
-	vif_iter := vifmap.IterVif()
-	for vif_iter.Next(&vk, &vv) {
-		fmt.Printf("k: %+v  v: %+v\n", vk, vv)
+	tx_ports_iter := tx_ports.Iter()
+	for tx_ports_iter.Next(&vk, &vv) {
+		fmt.Printf("vif k: %+v  v: %+v\n", vk, vv)
 	}
 
 	if err := internal.App(); err != nil {

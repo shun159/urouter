@@ -38,64 +38,14 @@ struct datarec {
 /* This is the Bridge entry stored in the map*/
 struct mac_entry {
 	unsigned char address[ETH_ALEN]; /* destination eth addr */
-	unsigned short vlan_id;
-	uint32_t domain_id;
 } __attribute__((packed));
 
-/* config entry per interface */
-struct vif_entry {
-	uint32_t domain_id;
-} __attribute__((packed));
-
-#ifndef XDP_ACTION_MAX
-#define XDP_ACTION_MAX (XDP_REDIRECT + 1)
-#endif
-
-/*
- * Map definitions
- *  - tx_ports: used for redirect packet
- *  - domain: used for define broadcast domain.
- *  - virtual_interfaces(vif): interface configuration
- *  - bridge_table: shared FIB table backed by LRU hash table.
- *
- *        +----------------------------------------+
- *        |                                        |
- *        | +-----------+                          |
- * vif1 <-----          |  logical L2 switch       | 
- *        | |  domain1  |                          |
- * vif2 <-----          | <--+       +-----------+ |
- *        | +-----------+    | r/w   | Shared    | |
- *        |                  +-----> | FIB table | |
- *        | +-----------+    |       |           | |
- * vif3 <-----          | <--+       +-----------+ |
- *        | |  domain2  |                          |
- * vif4 <-----          |                          |
- *        | +-----------+                          |
- *        |                                        |
- *        +----------------------------------------+
- */
-
-struct domain_devmap {
+struct {
 	__uint(type, BPF_MAP_TYPE_DEVMAP);
-	__uint(max_entries, 256);
 	__type(key, uint32_t);
 	__type(value, uint32_t);
-} tx_ports SEC(".maps");
-
-struct {
-	__uint(type, BPF_MAP_TYPE_HASH_OF_MAPS);
-	__uint(max_entries, 1000);
-	__type(key, uint32_t);
-	__uint(map_flags, BPF_F_NO_PREALLOC);
-	__array(values, struct domain_devmap);
-} domain_map SEC(".maps");
-
-struct {
-	__uint(type, BPF_MAP_TYPE_HASH);
-	__type(key, uint32_t);
-	__type(value, struct vif_entry);
 	__uint(max_entries, 256);
-} urouter_vif SEC(".maps");
+} tx_ports SEC(".maps");
 
 struct {
 	__uint(type, BPF_MAP_TYPE_LRU_HASH);
@@ -114,12 +64,14 @@ static __always_inline int bridge_input(struct xdp_md *ctx)
 
 	struct hdr_cursor nh;
 	struct ethhdr *eth;
-	struct collect_vlans vlans;
 	struct mac_entry entry = {};
+
+	uint32_t index;
 	uint32_t ingress_ifindex;
+	uint64_t redirect_flags = 0;
 
 	nh.pos = data;
-	int eth_type = parse_ethhdr_vlan(&nh, data_end, &eth, &vlans);
+	int eth_type = parse_ethhdr(&nh, data_end, &eth);
 
 	if (eth_type < 0)
 		return XDP_ABORTED;
@@ -130,35 +82,25 @@ static __always_inline int bridge_input(struct xdp_md *ctx)
 	// MAC learning
 	bpf_map_update_elem(&bridge_table, &entry, &ingress_ifindex, 0);
 
-	return 0;
-}
+	// Forwarding
+	uint32_t *tmp_index =
+		(uint32_t *)bpf_map_lookup_elem(&bridge_table, &eth->h_dest);
+	if ((!tmp_index) || (IS_MAC_BMCAST(eth->h_dest))) {
+		redirect_flags = BPF_F_BROADCAST | BPF_F_EXCLUDE_INGRESS;
+		index = 0;
+	} else {
+		memcpy(&index, tmp_index, sizeof(uint32_t));
+	}
 
-static __always_inline int vm_rx(struct xdp_md *ctx)
-{
-	uint32_t in_port = ctx->ingress_ifindex;
-	struct vif_entry *vif = bpf_map_lookup_elem(&urouter_vif, &in_port);
-	if (!vif)
-		return -1;
-	return 0;
-}
-
-SEC("xdp_redirect")
-int xdp_redirect_fn(struct xdp_md *ctx)
-{
-	return XDP_REDIRECT;
+	int ret = bpf_redirect_map(&tx_ports, index, redirect_flags);
+	return ret;
 }
 
 SEC("xdp_router")
 int xdp_router_fn(struct xdp_md *ctx)
 {
-	bridge_input(ctx);
-	return XDP_PASS;
-}
-
-SEC("xdp_pass")
-int xdp_pass_fn(struct xdp_md *ctx)
-{
-	return XDP_PASS;
+	int ret = bridge_input(ctx);
+	return ret;
 }
 
 char _license[] SEC("license") = "GPL";

@@ -8,13 +8,12 @@ import (
 )
 
 func App() error {
-	objs := coreelf.UrouterObjs()
-	if err := objs.LoadProg(); err != nil {
+	progs, err := coreelf.GetUrouterPrograms()
+	if err != nil {
 		return errors.WithStack(err)
 	}
-	defer objs.Close()
 
-	links, err := objs.AttachDev([]string{
+	links, err := progs.AttachDev([]string{
 		"veth1",
 		"veth3",
 		"veth5",

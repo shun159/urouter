@@ -17,26 +17,92 @@
 package coreelf
 
 import (
+	"fmt"
 	"net"
 
+	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 	"github.com/pkg/errors"
+	"github.com/vishvananda/netlink"
 )
 
-//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cc $BPF_CLANG -cflags $BPF_CFLAGS urouter ../../bpf/urouter.bpf.c -- -Wno-compare-distinct-pointer-types  -Wnull-character -g -c -O2 -D__KERNEL__
+//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cc $BPF_CLANG -cflags $BPF_CFLAGS urouter ../../bpf/urouter.bpf.c -- -Wno-compare-distinct-pointer-types -Wno-int-conversion -Wnull-character -g -c -O2 -D__KERNEL__
 
-func UrouterObjs() urouterObjects {
-	return urouterObjects{}
+var maps *urouterMaps
+var programs *urouterPrograms
+
+func Init() error {
+	obj := urouterObjects{}
+
+	if err := loadUrouterObjects(&obj, nil); err != nil {
+		return errors.WithStack(err)
+	}
+
+	fmt.Println(obj)
+	maps = &obj.urouterMaps
+	programs = &obj.urouterPrograms
+
+	return nil
 }
 
-func (obj *urouterObjects) LoadProg() error {
-	if err := loadUrouterObjects(obj, nil); err != nil {
+// Definitions for TxPorts
+
+type TxPorts struct {
+	*ebpf.Map
+}
+
+// NewTxPorts returns a new object representing a domain inner map.
+func NewTxPorts() (*TxPorts, error) {
+	if maps == nil {
+		return nil, errors.New("maps are not initialized yet.")
+	}
+	return &TxPorts{maps.TxPorts}, nil
+}
+
+// Definitions for BridgeTable
+
+type BridgeTable struct {
+	*ebpf.Map
+}
+
+// NewBridgeTable returns a new object representing a bridge_table map
+func NewBridgeTable() (*BridgeTable, error) {
+	if maps == nil {
+		return nil, errors.New("maps are not initialized yet.")
+	}
+	return &BridgeTable{maps.BridgeTable}, nil
+}
+
+// Definitions for all maps
+
+func GetUrouterMaps() (*urouterMaps, error) {
+	if maps == nil {
+		return nil, errors.New("maps not yet initialized")
+	}
+	return maps, nil
+}
+
+// Definitions for all programs
+
+func GetUrouterPrograms() (*urouterPrograms, error) {
+	if programs == nil {
+		return nil, errors.New("maps not yet initialized")
+	}
+	return programs, nil
+}
+
+func Attach(prog *ebpf.Program, device string) error {
+	link, err := netlink.LinkByName(device)
+	if err != nil {
+		return errors.New(fmt.Sprintf("%s not found in object", device))
+	}
+	if err := netlink.LinkSetXdpFd(link, prog.FD()); err != nil {
 		return errors.WithStack(err)
 	}
 	return nil
 }
 
-func (obj *urouterObjects) AttachDev(dev_list []string) ([]link.Link, error) {
+func (obj *urouterPrograms) AttachDev(dev_list []string) ([]link.Link, error) {
 	var links []link.Link
 
 	for _, dev := range dev_list {
@@ -48,6 +114,7 @@ func (obj *urouterObjects) AttachDev(dev_list []string) ([]link.Link, error) {
 		l, err := link.AttachXDP(link.XDPOptions{
 			Program:   obj.XdpRouterFn,
 			Interface: iface.Index,
+			Flags:     link.XDPGenericMode,
 		})
 
 		if err != nil {

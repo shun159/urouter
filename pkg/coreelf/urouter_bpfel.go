@@ -13,13 +13,7 @@ import (
 	"github.com/cilium/ebpf"
 )
 
-type urouterMacEntry struct {
-	Address  [6]uint8
-	VlanId   uint16
-	DomainId uint32
-}
-
-type urouterVifEntry struct{ DomainId uint32 }
+type urouterMacEntry struct{ Address [6]uint8 }
 
 // loadUrouter returns the embedded CollectionSpec for urouter.
 func loadUrouter() (*ebpf.CollectionSpec, error) {
@@ -62,9 +56,7 @@ type urouterSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type urouterProgramSpecs struct {
-	XdpPassFn     *ebpf.ProgramSpec `ebpf:"xdp_pass_fn"`
-	XdpRedirectFn *ebpf.ProgramSpec `ebpf:"xdp_redirect_fn"`
-	XdpRouterFn   *ebpf.ProgramSpec `ebpf:"xdp_router_fn"`
+	XdpRouterFn *ebpf.ProgramSpec `ebpf:"xdp_router_fn"`
 }
 
 // urouterMapSpecs contains maps before they are loaded into the kernel.
@@ -72,9 +64,7 @@ type urouterProgramSpecs struct {
 // It can be passed ebpf.CollectionSpec.Assign.
 type urouterMapSpecs struct {
 	BridgeTable *ebpf.MapSpec `ebpf:"bridge_table"`
-	DomainMap   *ebpf.MapSpec `ebpf:"domain_map"`
 	TxPorts     *ebpf.MapSpec `ebpf:"tx_ports"`
-	UrouterVif  *ebpf.MapSpec `ebpf:"urouter_vif"`
 }
 
 // urouterObjects contains all objects after they have been loaded into the kernel.
@@ -97,17 +87,13 @@ func (o *urouterObjects) Close() error {
 // It can be passed to loadUrouterObjects or ebpf.CollectionSpec.LoadAndAssign.
 type urouterMaps struct {
 	BridgeTable *ebpf.Map `ebpf:"bridge_table"`
-	DomainMap   *ebpf.Map `ebpf:"domain_map"`
 	TxPorts     *ebpf.Map `ebpf:"tx_ports"`
-	UrouterVif  *ebpf.Map `ebpf:"urouter_vif"`
 }
 
 func (m *urouterMaps) Close() error {
 	return _UrouterClose(
 		m.BridgeTable,
-		m.DomainMap,
 		m.TxPorts,
-		m.UrouterVif,
 	)
 }
 
@@ -115,15 +101,11 @@ func (m *urouterMaps) Close() error {
 //
 // It can be passed to loadUrouterObjects or ebpf.CollectionSpec.LoadAndAssign.
 type urouterPrograms struct {
-	XdpPassFn     *ebpf.Program `ebpf:"xdp_pass_fn"`
-	XdpRedirectFn *ebpf.Program `ebpf:"xdp_redirect_fn"`
-	XdpRouterFn   *ebpf.Program `ebpf:"xdp_router_fn"`
+	XdpRouterFn *ebpf.Program `ebpf:"xdp_router_fn"`
 }
 
 func (p *urouterPrograms) Close() error {
 	return _UrouterClose(
-		p.XdpPassFn,
-		p.XdpRedirectFn,
 		p.XdpRouterFn,
 	)
 }

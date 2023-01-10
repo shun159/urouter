@@ -14,33 +14,37 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-package config
+package tx_ports
 
 import (
-	"net"
-
+	"github.com/cilium/ebpf"
 	"github.com/pkg/errors"
-	"github.com/shun159/urouter/pkg/maps/tx_ports"
+	"github.com/shun159/urouter/pkg/coreelf"
 )
 
-// VifConfig represents the configuration of virtual interface.
-// For now, the struct include only a pair of ifname and an id of domain belonging to.
-type TxPorts struct {
-	IfName string
-}
+var txPortsMap *coreelf.TxPorts
 
-func SetTxPorts(ports []TxPorts) error {
-	for _, port := range ports {
-		iface, err := net.InterfaceByName(port.IfName)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-
-		ifindex := uint32(iface.Index)
-		if err := tx_ports.AddTxPort(ifindex); err != nil {
-			return errors.WithStack(err)
-		}
+// InitTxPorts inits the tx_ports map
+func InitTxPorts() error {
+	m, err := coreelf.NewTxPorts()
+	if err != nil {
+		return errors.WithStack(err)
 	}
 
+	txPortsMap = m
 	return nil
+}
+
+// AddTxPort updates the list of the devmap for the redirection
+func AddTxPort(ifindex uint32) error {
+	if txPortsMap == nil {
+		return errors.New("the map is not initialized yet")
+	}
+
+	return txPortsMap.Map.Update(&ifindex, &ifindex, 0)
+}
+
+// GetTxPortsIter returns the iterator of the tx_ports map
+func Iter() *ebpf.MapIterator {
+	return txPortsMap.Map.Iterate()
 }
