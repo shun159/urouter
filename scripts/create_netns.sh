@@ -28,7 +28,7 @@ ip netns exec host2 ip link set dev veth2 up
 ip netns exec host2 ip addr add 1.0.0.2/24 dev veth2
 
 ip netns exec host3 ip link set dev veth4 up
-ip netns exec host3 ip addr add 1.0.0.1/24 dev veth4
+ip netns exec host3 ip addr add 1.0.0.3/24 dev veth4
 ip netns exec host4 ip link set dev veth6 up
-ip netns exec host4 ip addr add 1.0.0.2/24 dev veth6
+ip netns exec host4 ip addr add 1.0.0.4/24 dev veth6
 

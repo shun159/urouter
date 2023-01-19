@@ -21,10 +21,14 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/shun159/urouter/pkg/maps/tx_ports"
+	"github.com/shun159/urouter/pkg/maps/vif_table"
 )
 
-// VifConfig represents the configuration of virtual interface.
-// For now, the struct include only a pair of ifname and an id of domain belonging to.
+type Vif struct {
+	IfName  string
+	VifType uint32
+}
+
 type TxPorts struct {
 	IfName string
 }
@@ -38,6 +42,22 @@ func SetTxPorts(ports []TxPorts) error {
 
 		ifindex := uint32(iface.Index)
 		if err := tx_ports.AddTxPort(ifindex); err != nil {
+			return errors.WithStack(err)
+		}
+	}
+
+	return nil
+}
+
+func SetVif(ports []Vif) error {
+	for _, port := range ports {
+		iface, err := net.InterfaceByName(port.IfName)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+
+		ifindex := uint32(iface.Index)
+		if err := vif_table.AddEntry(ifindex, port.VifType); err != nil {
 			return errors.WithStack(err)
 		}
 	}

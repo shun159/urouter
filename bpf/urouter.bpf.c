@@ -40,10 +40,25 @@ struct mac_entry {
 	unsigned char address[ETH_ALEN]; /* destination eth addr */
 } __attribute__((packed));
 
+/* virtual interface configuration entry in the map */
+enum vif_type {
+    UR_VIF_DOWNLINK,
+    UR_VIF_UPLINK,
+    UR_VIF_IRB,
+};
+
+struct vif_entry {
+    uint32_t vif_type;
+    unsigned char mac[ETH_ALEN];
+    uint32_t ip4;
+    uint64_t ip6u;
+    uint64_t ip6l;
+} __attribute__((packed));
+
 struct {
 	__uint(type, BPF_MAP_TYPE_DEVMAP);
 	__type(key, uint32_t);
-	__type(value, uint32_t);
+	__type(value, enum vif_type);
 	__uint(max_entries, 256);
 } tx_ports SEC(".maps");
 
@@ -53,6 +68,13 @@ struct {
 	__type(value, uint32_t);
 	__uint(max_entries, 1000);
 } bridge_table SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __type(key, uint32_t);
+    __type(value, struct vif_entry);
+    __uint(max_entries, 256);
+} vif_table SEC(".maps");
 
 //
 // eBPF functions
@@ -96,10 +118,31 @@ static __always_inline int bridge_input(struct xdp_md *ctx)
 	return ret;
 }
 
+static __always_inline int vm_rx(struct xdp_md *ctx)
+{
+    struct vif_entry *vif;
+    uint32_t ingress_ifindex;
+
+    memcpy(&ingress_ifindex,&ctx->ingress_ifindex, sizeof(uint32_t));
+
+    vif = (struct vif_entry *)bpf_map_lookup_elem(&vif_table, &ingress_ifindex);
+    if (!vif)
+       return -1;
+
+    bpf_printk("vif_type: %d\n", vif->vif_type);
+    return XDP_PASS;
+}
+
 SEC("xdp_router")
 int xdp_router_fn(struct xdp_md *ctx)
 {
-	int ret = bridge_input(ctx);
+    int ret;
+    
+    ret = vm_rx(ctx);
+    if (ret == -1)
+        return XDP_ABORTED;
+
+	ret = bridge_input(ctx);
 	return ret;
 }
 

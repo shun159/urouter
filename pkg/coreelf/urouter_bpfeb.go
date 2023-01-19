@@ -15,6 +15,22 @@ import (
 
 type urouterMacEntry struct{ Address [6]uint8 }
 
+type urouterVifEntry struct {
+	VifType uint32
+	Mac     [6]uint8
+	Ip4     uint32
+	Ip6u    uint64
+	Ip6l    uint64
+}
+
+type urouterVifType uint32
+
+const (
+	urouterVifTypeUR_VIF_DOWNLINK urouterVifType = 0
+	urouterVifTypeUR_VIF_UPLINK   urouterVifType = 1
+	urouterVifTypeUR_VIF_IRB      urouterVifType = 2
+)
+
 // loadUrouter returns the embedded CollectionSpec for urouter.
 func loadUrouter() (*ebpf.CollectionSpec, error) {
 	reader := bytes.NewReader(_UrouterBytes)
@@ -65,6 +81,7 @@ type urouterProgramSpecs struct {
 type urouterMapSpecs struct {
 	BridgeTable *ebpf.MapSpec `ebpf:"bridge_table"`
 	TxPorts     *ebpf.MapSpec `ebpf:"tx_ports"`
+	VifTable    *ebpf.MapSpec `ebpf:"vif_table"`
 }
 
 // urouterObjects contains all objects after they have been loaded into the kernel.
@@ -88,12 +105,14 @@ func (o *urouterObjects) Close() error {
 type urouterMaps struct {
 	BridgeTable *ebpf.Map `ebpf:"bridge_table"`
 	TxPorts     *ebpf.Map `ebpf:"tx_ports"`
+	VifTable    *ebpf.Map `ebpf:"vif_table"`
 }
 
 func (m *urouterMaps) Close() error {
 	return _UrouterClose(
 		m.BridgeTable,
 		m.TxPorts,
+		m.VifTable,
 	)
 }
 

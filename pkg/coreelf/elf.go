@@ -23,7 +23,6 @@ import (
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
 	"github.com/pkg/errors"
-	"github.com/vishvananda/netlink"
 )
 
 //go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cc $BPF_CLANG -cflags $BPF_CFLAGS urouter ../../bpf/urouter.bpf.c -- -Wno-compare-distinct-pointer-types -Wno-int-conversion -Wnull-character -g -c -O2 -D__KERNEL__
@@ -51,7 +50,7 @@ type TxPorts struct {
 	*ebpf.Map
 }
 
-// NewTxPorts returns a new object representing a domain inner map.
+// NewTxPorts returns a new object representing a tx_ports
 func NewTxPorts() (*TxPorts, error) {
 	if maps == nil {
 		return nil, errors.New("maps are not initialized yet.")
@@ -65,12 +64,25 @@ type BridgeTable struct {
 	*ebpf.Map
 }
 
-// NewBridgeTable returns a new object representing a bridge_table map
+// NewBridgeTable returns a new object representing a bridge_table
 func NewBridgeTable() (*BridgeTable, error) {
 	if maps == nil {
 		return nil, errors.New("maps are not initialized yet.")
 	}
 	return &BridgeTable{maps.BridgeTable}, nil
+}
+
+// Definitions for VifTable
+type VifTable struct {
+	*ebpf.Map
+}
+
+// NewVifTable returns a new object representing a vif_table
+func NewVifTable() (*VifTable, error) {
+	if maps == nil {
+		return nil, errors.New("maps are not initialized yet.")
+	}
+	return &VifTable{maps.VifTable}, nil
 }
 
 // Definitions for all maps
@@ -89,17 +101,6 @@ func GetUrouterPrograms() (*urouterPrograms, error) {
 		return nil, errors.New("maps not yet initialized")
 	}
 	return programs, nil
-}
-
-func Attach(prog *ebpf.Program, device string) error {
-	link, err := netlink.LinkByName(device)
-	if err != nil {
-		return errors.New(fmt.Sprintf("%s not found in object", device))
-	}
-	if err := netlink.LinkSetXdpFd(link, prog.FD()); err != nil {
-		return errors.WithStack(err)
-	}
-	return nil
 }
 
 func (obj *urouterPrograms) AttachDev(dev_list []string) ([]link.Link, error) {

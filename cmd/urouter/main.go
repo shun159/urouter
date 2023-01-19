@@ -25,6 +25,7 @@ import (
 	"github.com/shun159/urouter/pkg/config"
 	"github.com/shun159/urouter/pkg/coreelf"
 	"github.com/shun159/urouter/pkg/maps/tx_ports"
+	"github.com/shun159/urouter/pkg/maps/vif_table"
 )
 
 func main() {
@@ -33,6 +34,10 @@ func main() {
 	}
 
 	if err := coreelf.Init(); err != nil {
+		log.Fatalf("%+v", err)
+	}
+
+	if err := vif_table.InitVifTable(); err != nil {
 		log.Fatalf("%+v", err)
 	}
 
@@ -48,6 +53,17 @@ func main() {
 	}
 
 	if err := config.SetTxPorts(ports); err != nil {
+		log.Fatalf("%+v", err)
+	}
+
+	vif := []config.Vif{
+		{IfName: "veth1", VifType: vif_table.UR_VIF_DOWNLINK},
+		{IfName: "veth3", VifType: vif_table.UR_VIF_DOWNLINK},
+		{IfName: "veth5", VifType: vif_table.UR_VIF_DOWNLINK},
+		{IfName: "veth7", VifType: vif_table.UR_VIF_DOWNLINK},
+	}
+
+	if err := config.SetVif(vif); err != nil {
 		log.Fatalf("%+v", err)
 	}
 
