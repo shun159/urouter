@@ -42,17 +42,17 @@ struct mac_entry {
 
 /* virtual interface configuration entry in the map */
 enum vif_type {
-    UR_VIF_DOWNLINK,
-    UR_VIF_UPLINK,
-    UR_VIF_IRB,
+	UR_VIF_DOWNLINK,
+	UR_VIF_UPLINK,
+	UR_VIF_IRB,
 };
 
 struct vif_entry {
-    uint32_t vif_type;
-    unsigned char mac[ETH_ALEN];
-    uint32_t ip4;
-    uint64_t ip6u;
-    uint64_t ip6l;
+	uint32_t vif_type;
+	unsigned char mac[ETH_ALEN];
+	uint32_t ip4;
+	uint64_t ip6u;
+	uint64_t ip6l;
 } __attribute__((packed));
 
 struct {
@@ -70,11 +70,17 @@ struct {
 } bridge_table SEC(".maps");
 
 struct {
-    __uint(type, BPF_MAP_TYPE_HASH);
-    __type(key, uint32_t);
-    __type(value, struct vif_entry);
-    __uint(max_entries, 256);
+	__uint(type, BPF_MAP_TYPE_HASH);
+	__type(key, uint32_t);
+	__type(value, struct vif_entry);
+	__uint(max_entries, 256);
 } vif_table SEC(".maps");
+
+// ur_trap_rb use as an interface for traps unhandled packets to userspace program.
+struct {
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 256 * 1024);
+} ur_trap_rb SEC(".maps");
 
 //
 // eBPF functions
@@ -120,27 +126,28 @@ static __always_inline int bridge_input(struct xdp_md *ctx)
 
 static __always_inline int vm_rx(struct xdp_md *ctx)
 {
-    struct vif_entry *vif;
-    uint32_t ingress_ifindex;
+	struct vif_entry *vif;
+	uint32_t ingress_ifindex;
 
-    memcpy(&ingress_ifindex,&ctx->ingress_ifindex, sizeof(uint32_t));
+	memcpy(&ingress_ifindex, &ctx->ingress_ifindex, sizeof(uint32_t));
 
-    vif = (struct vif_entry *)bpf_map_lookup_elem(&vif_table, &ingress_ifindex);
-    if (!vif)
-       return -1;
+	vif = (struct vif_entry *)bpf_map_lookup_elem(&vif_table,
+						      &ingress_ifindex);
+	if (!vif)
+		return -1;
 
-    bpf_printk("vif_type: %d\n", vif->vif_type);
-    return XDP_PASS;
+	bpf_printk("vif_type: %d\n", vif->vif_type);
+	return XDP_PASS;
 }
 
 SEC("xdp_router")
 int xdp_router_fn(struct xdp_md *ctx)
 {
-    int ret;
-    
-    ret = vm_rx(ctx);
-    if (ret == -1)
-        return XDP_ABORTED;
+	int ret;
+
+	ret = vm_rx(ctx);
+	if (ret < 0)
+		return XDP_ABORTED;
 
 	ret = bridge_input(ctx);
 	return ret;
