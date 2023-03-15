@@ -32,12 +32,10 @@ var programs *urouterPrograms
 
 func Init() error {
 	obj := urouterObjects{}
-
 	if err := loadUrouterObjects(&obj, nil); err != nil {
+		fmt.Println(err)
 		return errors.WithStack(err)
 	}
-
-	fmt.Println(obj)
 	maps = &obj.urouterMaps
 	programs = &obj.urouterPrograms
 

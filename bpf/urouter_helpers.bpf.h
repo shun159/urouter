@@ -19,9 +19,14 @@
 #ifndef __PARSING_HELPERS_H
 #define __PARSING_HELPERS_H
 
+#define ETH_ALEN 6
+#define ETH_P_8021Q 0x8100 /* 802.1Q VLAN Extended Header  */
+#define ETH_P_8021AD 0x88A8 /* 802.1ad Service VLAN		*/
+
+#include "vmlinux.h"
+/*
 #include <linux/icmp.h>
 #include <linux/icmpv6.h>
-#include <linux/if_ether.h>
 #include <linux/if_packet.h>
 #include <linux/ip.h>
 #include <linux/ipv6.h>
@@ -29,6 +34,7 @@
 #include <linux/udp.h>
 #include <stddef.h>
 
+*/
 #ifndef memcpy
 #define memcpy(dest, src, n) __builtin_memcpy((dest), (src), (n))
 #endif
@@ -61,20 +67,20 @@ struct hdr_cursor {
  *	struct vlan_hdr - vlan header
  *	@h_vlan_TCI: priority and VLAN ID
  *	@h_vlan_encapsulated_proto: packet type ID or len
- */
 struct vlan_hdr {
 	__be16 h_vlan_TCI;
 	__be16 h_vlan_encapsulated_proto;
 };
 
+ */
 /*
  * Struct icmphdr_common represents the common part of the icmphdr and icmp6hdr
  * structures.
  */
 struct icmphdr_common {
-	__u8 type;
-	__u8 code;
-	__sum16 cksum;
+	u8 type;
+	u8 code;
+	s16 cksum;
 };
 
 /* Allow users of header file to redefine VLAN max depth */

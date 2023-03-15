@@ -13,21 +13,42 @@
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
-
-#include <linux/bpf.h>
-#include <linux/in.h>
-#include <linux/ip.h>
-#include <linux/ipv6.h>
-#include <linux/pkt_cls.h>
-#include <linux/types.h>
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
+#include "vmlinux.h"
 
 #include <bpf/bpf_endian.h>
 #include <bpf/bpf_helpers.h>
 
 #include "urouter_helpers.bpf.h"
+
+char _license[] SEC("license") = "GPL";
+
+struct bpf_ct_opts___local {
+	s32 netns_id;
+	s32 error;
+	u8 l4proto;
+	u8 reserved[3];
+} __attribute__((preserve_access_index));
+
+struct nf_conn___init *bpf_xdp_ct_alloc(struct xdp_md *,
+					struct bpf_sock_tuple *, u32,
+					struct bpf_ct_opts___local *,
+					u32) __ksym;
+
+struct nf_conn *bpf_xdp_ct_lookup(struct xdp_md *, struct bpf_sock_tuple *, u32,
+				  struct bpf_ct_opts___local *, u32) __ksym;
+struct nf_conn *bpf_skb_ct_alloc(struct __sk_buff *, struct bpf_sock_tuple *,
+				 u32, struct bpf_ct_opts___local *, u32) __ksym;
+struct nf_conn *bpf_skb_ct_lookup(struct __sk_buff *, struct bpf_sock_tuple *,
+				  u32, struct bpf_ct_opts___local *,
+				  u32) __ksym;
+struct nf_conn *bpf_ct_insert_entry(struct nf_conn___init *) __ksym;
+void bpf_ct_release(struct nf_conn *) __ksym;
+void bpf_ct_set_timeout(struct nf_conn *, u32) __ksym;
+int bpf_ct_change_timeout(struct nf_conn *, u32) __ksym;
+int bpf_ct_set_status(struct nf_conn *, u32) __ksym;
+int bpf_ct_change_status(struct nf_conn *, u32) __ksym;
+int bpf_ct_set_nat_info(struct nf_conn *, union nf_inet_addr *, int port,
+			enum nf_nat_manip_type) __ksym;
 
 /* This is the data record stored in the map */
 struct datarec {
@@ -78,8 +99,8 @@ struct {
 
 // ur_trap_rb use as an interface for traps unhandled packets to userspace program.
 struct {
-    __uint(type, BPF_MAP_TYPE_RINGBUF);
-    __uint(max_entries, 256 * 1024);
+	__uint(type, BPF_MAP_TYPE_RINGBUF);
+	__uint(max_entries, 256 * 1024);
 } ur_trap_rb SEC(".maps");
 
 //
@@ -129,6 +150,33 @@ static __always_inline int vm_rx(struct xdp_md *ctx)
 	struct vif_entry *vif;
 	uint32_t ingress_ifindex;
 
+	struct nf_conn *ct_ins;
+	struct bpf_ct_opts___local opts_def = {
+		.l4proto = IPPROTO_TCP, .netns_id = -1,
+	};
+	struct bpf_sock_tuple bpf_tuple;
+
+	bpf_tuple.ipv4.saddr = 0x01010101; /* src IP */
+	bpf_tuple.ipv4.daddr = 0x02020202; /* dst IP */
+	bpf_tuple.ipv4.sport = bpf_get_prandom_u32(); /* src port */
+	bpf_tuple.ipv4.dport = bpf_get_prandom_u32(); /* dst port */
+
+	struct nf_conn___init *ct;
+	ct = bpf_xdp_ct_alloc(ctx, &bpf_tuple, sizeof(bpf_tuple.ipv4),
+			      &opts_def, sizeof(opts_def));
+	if (!ct) {
+		bpf_printk("aborted! #1");
+		return XDP_ABORTED;
+	}
+
+	ct_ins = bpf_ct_insert_entry(ct);
+	if (!ct_ins) {
+		bpf_printk("aborted! #2");
+		return XDP_ABORTED;
+	}
+
+	bpf_ct_release(ct_ins);
+
 	memcpy(&ingress_ifindex, &ctx->ingress_ifindex, sizeof(uint32_t));
 
 	vif = (struct vif_entry *)bpf_map_lookup_elem(&vif_table,
@@ -153,4 +201,8 @@ int xdp_router_fn(struct xdp_md *ctx)
 	return ret;
 }
 
-char _license[] SEC("license") = "GPL";
+SEC("xdp_redirect")
+int xdp_redirect_fn(struct xdp_md *ctx)
+{
+	return XDP_PASS;
+}
