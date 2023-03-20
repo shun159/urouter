@@ -113,6 +113,7 @@ static __always_inline int bridge_input(struct xdp_md *ctx)
 
 	struct hdr_cursor nh;
 	struct ethhdr *eth;
+	struct arp_hdr *arp;
 	struct mac_entry entry = {};
 
 	uint32_t index;
@@ -124,6 +125,30 @@ static __always_inline int bridge_input(struct xdp_md *ctx)
 
 	if (eth_type < 0)
 		return XDP_ABORTED;
+	if (eth_type == bpf_ntohs(ETH_P_ARP)) {
+		struct bpf_dynptr ptr;
+		struct arp_hdr arp_pkt = { 0 };
+
+		int arp_pro = parse_arphdr(&nh, data_end, &arp);
+		if (arp_pro < 0)
+			return XDP_ABORTED;
+
+		memset(&arp_pkt, 0, sizeof(arp_pkt));
+
+		arp_pkt.ar_pro = arp->ar_pro;
+		arp_pkt.ar_hln = arp->ar_hln;
+		arp_pkt.ar_pln = arp->ar_pln;
+		arp_pkt.ar_op = arp->ar_op;
+		memcpy(&arp_pkt.ar_sip, &arp->ar_sip, sizeof(arp_pkt.ar_sip));
+		memcpy(&arp_pkt.ar_tip, &arp->ar_tip, sizeof(arp_pkt.ar_tip));
+		memcpy(&arp_pkt.ar_sha, &arp->ar_sha, sizeof(arp_pkt.ar_sha));
+		memcpy(&arp_pkt.ar_tha, &arp->ar_tha, sizeof(arp_pkt.ar_tha));
+
+		bpf_ringbuf_reserve_dynptr(&ur_trap_rb, sizeof(struct arp_hdr),
+					   0, &ptr);
+		bpf_dynptr_write(&ptr, 0, &arp_pkt, sizeof(struct arp_hdr), 0);
+		bpf_ringbuf_submit_dynptr(&ptr, 0);
+	}
 
 	memcpy(&entry.address, eth->h_source, ETH_ALEN);
 	memcpy(&ingress_ifindex, &ctx->ingress_ifindex, sizeof(uint32_t));
@@ -152,7 +177,8 @@ static __always_inline int vm_rx(struct xdp_md *ctx)
 
 	struct nf_conn *ct_ins;
 	struct bpf_ct_opts___local opts_def = {
-		.l4proto = IPPROTO_TCP, .netns_id = -1,
+		.l4proto = IPPROTO_TCP,
+		.netns_id = -1,
 	};
 	struct bpf_sock_tuple bpf_tuple;
 

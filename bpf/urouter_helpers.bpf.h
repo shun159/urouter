@@ -20,6 +20,7 @@
 #define __PARSING_HELPERS_H
 
 #define ETH_ALEN 6
+#define ETH_P_ARP 0x0806
 #define ETH_P_8021Q 0x8100 /* 802.1Q VLAN Extended Header  */
 #define ETH_P_8021AD 0x88A8 /* 802.1ad Service VLAN		*/
 
@@ -33,6 +34,7 @@
 #include <linux/tcp.h>
 #include <linux/udp.h>
 #include <stddef.h>
+
 
 */
 #ifndef memcpy
@@ -82,6 +84,22 @@ struct icmphdr_common {
 	u8 code;
 	s16 cksum;
 };
+
+/*
+ *	This structure defines an ethernet arp header.
+ */
+struct arp_hdr {
+	__be16 ar_hrd; /* format of hardware address	*/
+	__be16 ar_pro; /* format of protocol address	*/
+	unsigned char ar_hln; /* length of hardware address	*/
+	unsigned char ar_pln; /* length of protocol address	*/
+	__be16 ar_op; /* ARP opcode (command)		*/
+
+	unsigned char ar_sha[ETH_ALEN]; /* sender hardware address	*/
+	unsigned char ar_sip[4]; /* sender IP address		*/
+	unsigned char ar_tha[ETH_ALEN]; /* target hardware address	*/
+	unsigned char ar_tip[4]; /* target IP address		*/
+} __attribute__((packed));
 
 /* Allow users of header file to redefine VLAN max depth */
 #ifndef VLAN_MAX_DEPTH
@@ -155,6 +173,22 @@ static __always_inline int parse_ethhdr(struct hdr_cursor *nh, void *data_end,
 {
 	/* Expect compiler removes the code that collects VLAN ids */
 	return parse_ethhdr_vlan(nh, data_end, ethhdr, NULL);
+}
+
+static __always_inline int parse_arphdr(struct hdr_cursor *nh, void *data_end,
+					struct arp_hdr **arp)
+{
+	struct arp_hdr *arph = nh->pos;
+
+	// Pointer-arithmetic bounds check; pointer+1 points to after end of
+	// thing being pointed to.
+	if (arph + 1 > data_end)
+		return -1;
+
+	nh->pos = arph + 1;
+	*arp = arph;
+
+	return arph->ar_pro;
 }
 
 static __always_inline int parse_ip6hdr(struct hdr_cursor *nh, void *data_end,

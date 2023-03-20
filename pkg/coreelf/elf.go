@@ -30,6 +30,10 @@ import (
 var maps *urouterMaps
 var programs *urouterPrograms
 
+func RingBuf() *ebpf.Map {
+	return maps.UrTrapRb
+}
+
 func Init() error {
 	obj := urouterObjects{}
 	if err := loadUrouterObjects(&obj, nil); err != nil {
